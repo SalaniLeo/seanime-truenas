@@ -1,0 +1,61 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 43211:43211/tcp
+    restart: unless-stopped
+    environment:
+      VPN_SERVICE_PROVIDER: ${provider}
+      VPN_TYPE: ${type}
+      SERVER_COUNTRIES: ${countries}
+      TZ: ${tz}
+      DNS_ADDRESS: ${dns}
+      FIREWALL_OUTBOUND_SUBNETS: ${outbound_subnets}
+      WIREGUARD_PRIVATE_KEY: ${pr_key}
+      WIREGUARD_PUBLIC_KEY: ${pb_key}
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "https://1.1.1.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seanime:
+    image: seanime:cuda12.4
+    container_name: seanime
+    depends_on:
+      gluetun:
+        condition: service_healthy
+
+    network_mode: "container:gluetun"
+    restart: unless-stopped
+    platform: linux/amd64
+    user: "568:568"
+
+    environment:
+      TZ: Europe/San_Marino
+      SEANIME_SERVER_HOST: 0.0.0.0
+      SEANIME_SERVER_PORT: 43211
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+    volumes:
+      - ${ext_config_path}:${int_config_volume}
+      - ${ext_library_path}:${int_library_path}
+
+    group_add:
+      - 44
+      - 107
+      - 568
