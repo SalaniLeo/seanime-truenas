@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   actions: write
 
@@ -38,13 +38,10 @@ jobs:
       
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Read last built version (from repo variable)
+      - name: Read last built version
         id: last_release
         run: |
-          LAST="${{ vars.LAST_SEANIME_VERSION }}"
-          if [ -z "$LAST" ]; then
-            LAST="none"
-          fi
+          LAST=$(cat .last_seanime_version 2>/dev/null || echo "none")
           echo "Last built: $LAST"
           echo "last=$LAST" >> $GITHUB_OUTPUT
 
@@ -88,7 +85,9 @@ jobs:
       - name: Update stored release version
         if: steps.should_build.outputs.build == 'true'
         run: |
-          gh variable set LAST_SEANIME_VERSION \
-            --body "${{ steps.latest_release.outputs.tag }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "${{ steps.latest_release.outputs.tag }}" > .last_seanime_version
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .last_seanime_version
+          git commit -m "chore: update last built version to ${{ steps.latest_release.outputs.tag }}"
+          git push
